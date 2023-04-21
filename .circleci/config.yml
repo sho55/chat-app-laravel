@@ -1,0 +1,51 @@
+# PHP CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-php/ for more details
+#
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/php:7.1-apache-node-browsers
+    working_directory: ~/laravel-app
+
+    steps:
+      - checkout
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "composer.json" }}
+          # fallback to using the latest cache if no exact match is found
+          - v1-dependencies-
+      
+      # install composer packages
+      - run: php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+      - run: php composer-setup.php --filename=composer
+      - run: ./composer install -n --prefer-dist
+
+      - save_cache:
+          paths:
+            - ./vendor
+          key: v1-dependencies-{{ checksum "composer.json" }}
+
+      - run:
+          name: Set laravel .env file for CircleCI
+          command: cp .env.testing.example .env
+  
+      # Generate app key 
+      - run: php artisan key:generate
+
+      # Run static analysis
+      - run: 
+          name: Run PHP_CodeSniffer
+          command: ./vendor/bin/phpcs --colors --standard=phpcs.xml ./
+
+      - run:
+          name: Run PHP Mess Detector
+          command: ./vendor/bin/phpmd ./ text ./phpmd.xml
+
+      # Run unit test
+      - run: 
+          name: Run PHPUnit Test
+          command: ./vendor/bin/phpunit
+          
